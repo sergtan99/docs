@@ -1,35 +1,206 @@
 ---
-title: 'Code blocks'
-description: 'Display inline code and code blocks'
-icon: 'code'
+title: Configuring Sink via CLI on Gateway
+description: Configure a Wirepas sink on a gateway using Docker + CLI. Includes listing sinks and setting node/network parameters and keys.
 ---
 
-## Inline code
+## Overview
 
-To denote a `word` or `phrase` as code, enclose it in backticks (`).
+This guide shows how to configure a **sink** on a gateway via the CLI.
 
+> **Prerequisites**
+>
+> You have already:
+>
+> 1. Connected to the gateway.
+> 2. Installed the Wirepas gateway services on the gateway.
+> 3. Physically connected the sink to the gateway.
+
+---
+
+## 1) Find the Docker volume for D-Bus
+
+Use this to locate the D-Bus volume used by the transport service:
+
+<Tabs>
+  <Tab title="Command">
+
+```bash
+docker volume ls | grep "dbus"
 ```
-To denote a `word` or `phrase` as code, enclose it in backticks (`).
+
+  </Tab>
+  <Tab title="Example output">
+
+```console
+docker volume ls | grep "dbus"
+local               docker-compose_dbus-volume
+```
+  </Tab>
+</Tabs>
+
+Note the volume name (e.g., `docker-compose_dbus-volume`). You’ll use it in all subsequent commands.
+
+---
+
+## 2) Command pattern
+
+All configuration is done by running the transport service container and calling `wm-node-conf`.
+
+```bash
+docker run --rm   -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf {list|set} <options>
 ```
 
-## Code blocks
+- Replace `<VOLUME_NAME>` with the D-Bus volume you found above.
+- Use `list` to inspect sinks and `set` to configure them.
+- You can see all available options with `-h`:
 
-Use [fenced code blocks](https://www.markdownguide.org/extended-syntax/#fenced-code-blocks) by enclosing code in three backticks and follow the leading ticks with the programming language of your snippet to get syntax highlighting. Optionally, you can also write the name of your code after the programming language.
-
-```java HelloWorld.java
-class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-}
+```bash
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus wirepas/gateway_transport_service wm-node-conf -h
 ```
 
-````md
-```java HelloWorld.java
-class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-}
+> **Important**
+>
+> Stop sink services **before** re-configuring parameters. If you are configuring a sink for the first time, the stack on the sink is already stopped.
+
+---
+
+## 3) List sinks on the gateway
+
+Run `list` to discover connected sinks and their current configuration. This also gives you the `sink_id` you’ll need for subsequent commands.
+
+<Tabs>
+  <Tab title="Command">
+
+```bash
+docker run --rm   -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf list
 ```
-````
+
+  </Tab>
+  <Tab title="Example output">
+
+```console
+List of sinks:
+============== [sink1] ===============
+[sink_id]: sink1
+[started]: True
+[node_address]: 1
+[node_role]: SINK, CSMA_CA 
+[network_address]: 1001
+[network_channel]: 1
+[max_ac]: 8000
+[min_ac]: 2000
+[max_ac_cur]: 8000
+[min_ac_cur]: 2000
+[max_ch]: 40
+[min_ch]: 1
+[max_mtu]: 102
+[hw_magic]: 6
+[stack_profile]: 1
+[firmware_version]: [5, 3, 0, 89]
+[app_config_max_size]: 80
+[are_keys_set]: False
+[app_config_seq]: 0
+[app_config_diag]: 0
+[app_config_data]: b'0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+[stored_status]: ScratchpadStatus.SCRATCHPAD_STATUS_SUCCESS
+[stored_type]: ScratchpadType.SCRATCHPAD_TYPE_BLANK
+[stored_scratchpad]: {'seq': 0, 'crc': 0, 'len': 0}
+[processed_scratchpad]: {'seq': 255, 'crc': 65535, 'len': 16}
+[firmware_area_id]: 262
+[target_and_action]: {'action': <ScratchpadAction.ACTION_NO_OTAP: 1>, 'target_sequence': 0, 'target_crc': 0, 'param': 0}
+[cost]: 0
+===================================
+```
+  </Tab>
+</Tabs>
+
+---
+
+## 4) Configuration commands
+
+All `set` commands share this pattern:
+
+```bash
+docker run --rm   -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set <options> -s <SINK_ID>
+```
+
+On success you’ll see:
+
+```console
+Configuration done with result = GatewayResultCode.GW_RES_OK
+```
+
+### 4.1 Set the **node address**
+
+- `<NODE_ADDRESS>`: integer node address.
+
+```bash
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -n <NODE_ADDRESS> -s <SINK_ID>
+```
+
+### 4.2 Set the **network address** (and optional channel)
+
+- `<NETWORK_ADDRESS>`: integer (supports hex), e.g. `-N 0xA1B2C3` or `-N 123456`.
+- Optionally include `-c <CHANNEL>` in the same command.
+
+```bash
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -N <NETWORK_ADDRESS> [-c <CHANNEL>] -s <SINK_ID>
+```
+
+**Example:**
+
+```bash
+docker run --rm -v dual_transport_dbus-volume:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -N 2bbba2 -c 10 -s sink1
+```
+
+### 4.3 Set the **network channel**
+
+- `<CHANNEL>`: integer channel number (e.g., `5`).
+
+```bash
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -c <CHANNEL> -s <SINK_ID>
+```
+
+### 4.4 Set the **authentication key**
+
+- `<AUTH_KEY>`: network‑wide 128‑bit key.  
+  Formats supported (examples):
+  - Continuous hex: `112233445566778899AABBCCDDEEFF11`
+  - Comma‑separated bytes: `11,22,33,44,55,66,77,88,99,AA,BB,CC,DD,EE,FF,11`
+
+```bash
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -ak <AUTH_KEY> -s <SINK_ID>
+```
+
+### 4.5 Set the **cipher key**
+
+- `<CIPHER_KEY>`: network‑wide cipher key (same formats as above).
+
+```bash
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -ck <CIPHER_KEY> -s <SINK_ID>
+```
+
+### 4.6 **Start / stop** the sink
+
+- `<BOOL>`: `true` to start, `false` to stop.
+
+```bash
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -S <BOOL> -s <SINK_ID>
+```
+
+**Examples**
+
+```bash
+# Stop
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -S false -s <SINK_ID>
+
+# Start
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -S true -s <SINK_ID>
+```
+
+---
+
+## Notes & Tips
+
+- Always run **List sinks** first to identify the correct `sink_id`, especially if multiple sinks are connected.
+- If a command fails, re-check the D-Bus volume mount (`-v <VOLUME_NAME>:/var/run/dbus`) and that sink services are stopped while reconfiguring.
