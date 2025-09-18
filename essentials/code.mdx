@@ -7,13 +7,14 @@ description: Configure a Wirepas sink on a gateway using Docker + CLI. Includes 
 
 This guide shows how to configure a **sink** on a gateway via the CLI.
 
-> **Prerequisites**
->
-> You have already:
->
-> 1. Connected to the gateway.
-> 2. Installed the Wirepas gateway services on the gateway.
-> 3. Physically connected the sink to the gateway.
+<Callout type="info" title="Prerequisites">
+You have already:
+<ol>
+  <li>Connected to the gateway.</li>
+  <li>Installed the Wirepas gateway services on the gateway.</li>
+  <li>Physically connected the sink to the gateway.</li>
+</ol>
+</Callout>
 
 ---
 
@@ -21,64 +22,61 @@ This guide shows how to configure a **sink** on a gateway via the CLI.
 
 Use this to locate the D-Bus volume used by the transport service:
 
-<Tabs>
-  <Tab title="Command">
+<CodeGroup>
 
-```bash
+```bash Command
 docker volume ls | grep "dbus"
 ```
 
-  </Tab>
-  <Tab title="Example output">
-
-```console
+```console Output
 docker volume ls | grep "dbus"
 local               docker-compose_dbus-volume
 ```
-  </Tab>
-</Tabs>
 
-Note the volume name (e.g., `docker-compose_dbus-volume`). You’ll use it in all subsequent commands.
+</CodeGroup>
+
+<Callout type="tip" title="Why this matters">
+You will reference this volume (e.g., <code>docker-compose_dbus-volume</code>) in every subsequent command via
+<code>-v &lt;VOLUME_NAME&gt;:/var/run/dbus</code>.
+</Callout>
 
 ---
 
 ## 2) Command pattern
 
-All configuration is done by running the transport service container and calling `wm-node-conf`.
+All configuration is done by running the transport service container and calling <code>wm-node-conf</code>.
 
-```bash
+<CodeGroup>
+
+```bash Base pattern
 docker run --rm   -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf {list|set} <options>
 ```
 
-- Replace `<VOLUME_NAME>` with the D-Bus volume you found above.
-- Use `list` to inspect sinks and `set` to configure them.
-- You can see all available options with `-h`:
-
-```bash
-docker run --rm -v <VOLUME_NAME>:/var/run/dbus wirepas/gateway_transport_service wm-node-conf -h
+```bash Show help
+docker run --rm   -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf -h
 ```
 
-> **Important**
->
-> Stop sink services **before** re-configuring parameters. If you are configuring a sink for the first time, the stack on the sink is already stopped.
+</CodeGroup>
+
+<Callout type="warning" title="Important">
+Stop sink services <strong>before</strong> re-configuring parameters.<br />
+If you are configuring a sink for the first time, the stack on the sink is already stopped.
+</Callout>
 
 ---
 
 ## 3) List sinks on the gateway
 
-Run `list` to discover connected sinks and their current configuration. This also gives you the `sink_id` you’ll need for subsequent commands.
+Run <code>list</code> to discover connected sinks and their current configuration. This also gives you the
+<code>sink_id</code> you’ll need for subsequent commands.
 
-<Tabs>
-  <Tab title="Command">
+<CodeGroup>
 
-```bash
+```bash Command
 docker run --rm   -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf list
 ```
 
-  </Tab>
-  <Tab title="Example output">
-
-```console
+```console Example output
 List of sinks:
 ============== [sink1] ===============
 [sink_id]: sink1
@@ -111,14 +109,18 @@ List of sinks:
 [cost]: 0
 ===================================
 ```
-  </Tab>
-</Tabs>
+
+</CodeGroup>
+
+<Callout type="tip" title="Before configuring">
+Always run the <code>list</code> command first to confirm the correct <code>sink_id</code>, especially when multiple sinks are connected.
+</Callout>
 
 ---
 
 ## 4) Configuration commands
 
-All `set` commands share this pattern:
+All <code>set</code> commands share this pattern:
 
 ```bash
 docker run --rm   -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set <options> -s <SINK_ID>
@@ -130,77 +132,83 @@ On success you’ll see:
 Configuration done with result = GatewayResultCode.GW_RES_OK
 ```
 
-### 4.1 Set the **node address**
+### 4.1 Set the <strong>node address</strong>
 
-- `<NODE_ADDRESS>`: integer node address.
+- <code>&lt;NODE_ADDRESS&gt;</code>: integer node address.
 
 ```bash
 docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -n <NODE_ADDRESS> -s <SINK_ID>
 ```
 
-### 4.2 Set the **network address** (and optional channel)
+### 4.2 Set the <strong>network address</strong> (and optional channel)
 
-- `<NETWORK_ADDRESS>`: integer (supports hex), e.g. `-N 0xA1B2C3` or `-N 123456`.
-- Optionally include `-c <CHANNEL>` in the same command.
+- <code>&lt;NETWORK_ADDRESS&gt;</code>: integer (supports hex), e.g. <code>-N 0xA1B2C3</code> or <code>-N 123456</code>.
+- Optionally include <code>-c &lt;CHANNEL&gt;</code> in the same command.
 
-```bash
+<CodeGroup>
+
+```bash Generic
 docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -N <NETWORK_ADDRESS> [-c <CHANNEL>] -s <SINK_ID>
 ```
 
-**Example:**
-
-```bash
+```bash Example
 docker run --rm -v dual_transport_dbus-volume:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -N 2bbba2 -c 10 -s sink1
 ```
 
-### 4.3 Set the **network channel**
+</CodeGroup>
 
-- `<CHANNEL>`: integer channel number (e.g., `5`).
+### 4.3 Set the <strong>network channel</strong>
+
+- <code>&lt;CHANNEL&gt;</code>: integer channel number (e.g., <code>5</code>).
 
 ```bash
 docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -c <CHANNEL> -s <SINK_ID>
 ```
 
-### 4.4 Set the **authentication key**
+### 4.4 Set the <strong>authentication key</strong>
 
-- `<AUTH_KEY>`: network‑wide 128‑bit key.  
-  Formats supported (examples):
-  - Continuous hex: `112233445566778899AABBCCDDEEFF11`
-  - Comma‑separated bytes: `11,22,33,44,55,66,77,88,99,AA,BB,CC,DD,EE,FF,11`
+<Callout type="info" title="Key formats">
+Provide a network‑wide 128‑bit key in one of the following formats:
+<ul>
+  <li>Continuous hex: <code>112233445566778899AABBCCDDEEFF11</code></li>
+  <li>Comma‑separated bytes: <code>11,22,33,44,55,66,77,88,99,AA,BB,CC,DD,EE,FF,11</code></li>
+</ul>
+</Callout>
 
 ```bash
 docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -ak <AUTH_KEY> -s <SINK_ID>
 ```
 
-### 4.5 Set the **cipher key**
+### 4.5 Set the <strong>cipher key</strong>
 
-- `<CIPHER_KEY>`: network‑wide cipher key (same formats as above).
+- <code>&lt;CIPHER_KEY&gt;</code>: network‑wide cipher key (same formats as the authentication key).
 
 ```bash
 docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -ck <CIPHER_KEY> -s <SINK_ID>
 ```
 
-### 4.6 **Start / stop** the sink
+### 4.6 <strong>Start / stop</strong> the sink
 
-- `<BOOL>`: `true` to start, `false` to stop.
+- <code>&lt;BOOL&gt;</code>: <code>true</code> to start, <code>false</code> to stop.
 
-```bash
-docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -S <BOOL> -s <SINK_ID>
+<CodeGroup>
+
+```bash Stop
+docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -S false -s <SINK_ID>
 ```
 
-**Examples**
-
-```bash
-# Stop
-docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -S false -s <SINK_ID>
-
-# Start
+```bash Start
 docker run --rm -v <VOLUME_NAME>:/var/run/dbus   wirepas/gateway_transport_service   wm-node-conf set -S true -s <SINK_ID>
 ```
 
+</CodeGroup>
+
 ---
 
-## Notes & Tips
-
-- Always run **List sinks** first to identify the correct `sink_id`, especially if multiple sinks are connected.
-- If a command fails, re-check the D-Bus volume mount (`-v <VOLUME_NAME>:/var/run/dbus`) and that sink services are stopped while reconfiguring.
+<Callout type="tip" title="Troubleshooting">
+<ul>
+  <li>Re-check the D-Bus volume mount: <code>-v &lt;VOLUME_NAME&gt;:/var/run/dbus</code>.</li>
+  <li>Ensure sink services are stopped while reconfiguring.</li>
+  <li>Confirm the correct <code>sink_id</code> using the <code>list</code> command.</li>
+</ul>
+</Callout>
